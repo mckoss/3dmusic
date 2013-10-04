@@ -2,12 +2,15 @@
 # For fastest build on quad-proc, use:
 #   make -j4
 
-MODELS=helmholtz.stl
 
-all: $(MODELS)
+MODELS=helmholtz whistle
+
+FILES=$(foreach f, $(MODELS), $(f).stl)
+
+all: $(FILES)
 
 clean:
-	rm -f $(MODELS)
+	rm -f $(FILES)
 
 # Generic stl file builder
 %.stl : %.scad

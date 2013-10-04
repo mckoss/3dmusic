@@ -2,6 +2,7 @@
 
    Equation for Helmholtz resonator frequency.
    http://en.wikipedia.org/wiki/Helmholtz_resonance
+   http://www.phys.unsw.edu.au/jw/Helmholtz.html
 
    f = c / (2 * pi) * sqrt(A/V/L)
 
@@ -11,14 +12,9 @@
       V = static volume
       L = length of "neck"
 
-   f = 54,000 * sqrt(A/(VL));   - All units in mm.
-
-   Example:
-
-   A = 50 (mm2)
-   V = 50 * 50 * 100 = 25000 mm3;
-   L = 10 mm;
-   f = 54,000 * sqrt(50 / 250,000) = 54,000 * 0.014 = 764 Hz
+   Note that L should be replaced by the "effective length" of the neck
+   which includes an additional end-effect term proportional to the radius
+   of the neck opening (on each end).
 */
 
 // Sphere and cylinder precision
@@ -32,7 +28,9 @@ THICKNESS = 1.0;
 // Constants
 PI = 3.141592654;
 E = 0.01;
-SOUND = 54000;
+SOUND_MPS = 344;
+C = SOUND_MPS * 1000 / 2 / PI;
+RADIUS_TO_LENGTH = 2.2;
 
 /* Create a Helmholtz oscillator with parameters in array:
 
@@ -45,15 +43,18 @@ module helmholtz(p) {
   l = p[1];
   a = p[2];
 
-  echo("Predicted frequency", SOUND * sqrt(a / v / l));
+  r_neck = circle_radius(a);
+  r_neck_outer = r_neck + THICKNESS;
+  v_neck = a * l;
+
+  // Effective length add 0.6r on outer edge and 1.0r for inner edge.
+  eff_l = l + RADIUS_TO_LENGTH * r_neck;
+  echo("Predicted frequency", C * sqrt(a / v / eff_l));
 
   r_body = cap_radius(v, TRUNCATE);
   r_body_outer = r_body + THICKNESS;
 
   top = 2 * r_body_outer * TRUNCATE;
-
-  r_neck = circle_radius(a);
-  r_neck_outer = r_neck + THICKNESS;
 
   difference() {
     trunc_sphere(r_body_outer);

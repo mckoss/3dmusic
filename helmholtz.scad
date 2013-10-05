@@ -42,14 +42,22 @@ module helmholtz(p) {
   v = p[0];
   l = p[1];
   a = p[2];
+  t = p[3];
 
   r_neck = circle_radius(a);
-  r_neck_outer = r_neck + THICKNESS;
-  v_neck = a * l;
 
-  // Effective length add 0.6r on outer edge and 1.0r for inner edge.
   eff_l = l + RADIUS_TO_LENGTH * r_neck;
   echo("Predicted frequency", C * sqrt(a / v / eff_l));
+
+  if (t == "s") {
+    helmholtz_sphere(v, l, a);
+  } else if (t == "c") {
+    helmholtz_cube(v, l, a);
+  }
+}
+
+module helmholtz_sphere(v, l, a) {
+  r_neck = circle_radius(a);
 
   r_body = cap_radius(v, TRUNCATE);
   r_body_outer = r_body + THICKNESS;
@@ -65,11 +73,31 @@ module helmholtz(p) {
   }
 
   translate([0, 0, top - THICKNESS])
+    neck_tube(r_neck, l);
+}
+
+module helmholtz_cube(v, l, a) {
+  r_neck = circle_radius(a);
+
+  side = pow(v, 1 / 3);
+  translate([0, 0, side / 2 + THICKNESS])
     difference() {
-      cylinder(r=r_neck_outer, h=l);
-      translate([0, 0, -E])
-        cylinder(r=r_neck, h=l + 2 * E);
+      cube(side + 2 * THICKNESS, center=true);
+      cube(side, center=true);
+      translate([0, 0, side / 2])
+        cylinder(r=r_neck, h=side, center=true);
     }
+
+   translate([0, 0, side + THICKNESS])
+     neck_tube(r_neck, l);
+}
+
+module neck_tube(r, l) {
+  difference() {
+    cylinder(r=r + THICKNESS, h=l);
+    translate([0, 0, -E])
+      cylinder(r=r, h=l + 2 * E);
+  }
 }
 
 module trunc_sphere(r) {
@@ -86,13 +114,9 @@ module grid_samples(samples, spacing=50) {
   cols = ceil(sqrt(count));
   rows = ceil(count / cols);
 
-  for (r = [0, rows - 1]) {
-    for (c = [0, cols - 1]) assign(i = r * cols + c) {
-      if (i < count) {
-        translate([c * spacing, (rows - r - 1) * spacing, 0])
-          helmholtz(samples[i]);
-      }
-    }
+  for (i = [0: count - 1]) assign(r = floor(i / cols), c = i % cols) {
+    translate([c * spacing, (rows - r - 1) * spacing, 0])
+      helmholtz(samples[i]);
   }
 }
 
@@ -117,4 +141,9 @@ function cap_radius(v, p) = pow(3 * v / (4 * PI * pow(p, 2) * (3 - 2 * p)), 1 / 
 function circle_radius(a) = sqrt(a / PI);
 
 v_base = 20 * 20 * 20;
-grid_samples([[v_base, 20, 30], [v_base / 4, 20, 30], [v_base * 4, 20, 30]]);
+grid_samples([
+  // v, l, a, t
+  // [v_base * 4, 20, 30, "c"],
+  // [v_base * 4, 80, 30, "s"],
+  [v_base * 4, 20, 30, "s"],
+  ]);

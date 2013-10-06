@@ -78,18 +78,20 @@ module helmholtz_sphere(v, l, a) {
 
 module helmholtz_cube(v, l, a) {
   r_neck = circle_radius(a);
-
   side = pow(v, 1 / 3);
-  translate([0, 0, side / 2 + THICKNESS])
-    difference() {
-      cube(side + 2 * THICKNESS, center=true);
-      cube(side, center=true);
-      translate([0, 0, side / 2])
-        cylinder(r=r_neck, h=side, center=true);
-    }
 
-   translate([0, 0, side + THICKNESS])
-     neck_tube(r_neck, l);
+  top = side * 1.5;
+
+  difference() {
+    trunc_cube(side + 2 * THICKNESS);
+    translate([0, 0, THICKNESS])
+      trunc_cube(side);
+    translate([0, 0, top / 2])
+      cylinder(r=r_neck, h=top);
+  }
+
+  translate([0, 0, top - THICKNESS])
+    neck_tube(r_neck, l);
 }
 
 module neck_tube(r, l) {
@@ -106,6 +108,19 @@ module trunc_sphere(r) {
       sphere(r);
     translate([0, 0, -r])
       cube([2 * r, 2 * r, 2 * r], center=true);
+  }
+}
+
+module trunc_cube(side) {
+  difference() {
+    translate([0, 0, side * .75])
+      rotate(a=-atan(1/sqrt(2)), v=[1, 0, 0])
+        rotate(a=45, v=[0, 1, 0])
+          cube(side, center=true);
+    translate([0, 0, -side])
+      cube([2 * side, 2 * side, 2 * side], center=true);
+    translate([0, 0, side * 2.5])
+      cube([2 * side, 2 * side, 2 * side], center=true);
   }
 }
 
@@ -143,7 +158,7 @@ function circle_radius(a) = sqrt(a / PI);
 v_base = 20 * 20 * 20;
 grid_samples([
   // v, l, a, t
-  // [v_base * 4, 20, 30, "c"],
-  // [v_base * 4, 80, 30, "s"],
-  [v_base * 4, 20, 30, "s"],
+  [v_base * 4, 20, 30, "c"],
+  //[v_base * 4, 80, 30, "s"],
+  //[v_base * 4, 20, 30, "s"],
   ]);

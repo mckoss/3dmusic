@@ -14,6 +14,7 @@ GAP_LENGTH = FLUE_HEIGHT * FLUE_TAPER * 2;
 EXIT_ANGLE = 15;
 EXIT_FLARE = 8;
 
+PI = 3.141592654;
 SOUND_MPS = 344;
 C = SOUND_MPS * 1000 / 2 / PI;
 
@@ -41,17 +42,17 @@ module whistle_ball(length=FLUE_LENGTH, width=FLUE_WIDTH, volume=10000) {
 
 module whistle_cylinder(flue_width=FLUE_WIDTH,
                         flue_height=FLUE_HEIGHT,
-                        pitch=2000,
+                        pitch=440,
                         volume) {
   gap = flue_height * FLUE_TAPER * 2;
   area = gap * flue_width;
   width = flue_width + 2 * THICKNESS;
   // Effective length???
-  length = THICKNESS + flue_height;
+  length = 1.3 * (THICKNESS + flue_height);
   echo("Effective mouth length", length);
   _volume = volume == undef ? volume_of(pitch, area, length) : volume;
-  r = circle_radius(_volume / flue_width);
-  flue_length = 2 * r;
+  r = pow(_volume / 2 / PI, 1 / 3);
+  flue_length = min(2 * r, 20);
   echo("Radius", r);
   difference() {
     union() {
@@ -60,8 +61,8 @@ module whistle_cylinder(flue_width=FLUE_WIDTH,
       translate([0, 0, -r + flue_height])
         rotate(90, v=[1, 0, 0])
           difference() {
-            cylinder(r=r + THICKNESS, h=width, center=true);
-            cylinder(r=r, h=flue_width, center=true);
+            cylinder(r=r + THICKNESS, h=2 * r + 2 * THICKNESS, center=true);
+            cylinder(r=r, h=2 * r, center=true);
           }
       translate([-(r + THICKNESS) / 2, 0, -(r + THICKNESS) / 2 + flue_height + THICKNESS])
         difference() {

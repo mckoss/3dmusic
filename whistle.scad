@@ -2,24 +2,57 @@ E = 0.01;
 $fa = 3;
 $fs = 1;
 
-FLUE_LENGTH = 41;
+FLUE_LENGTH = 30;
 FLUE_WIDTH = 10;
-FLUE_HEIGHT = 2;
+FLUE_HEIGHT = 3;
 FLUE_TAPER = 0.5;
 
-GAP_LENGTH = 3;
+TRUNCATE = 0.9;
+
+GAP_LENGTH = FLUE_HEIGHT * FLUE_TAPER * 2;
 
 EXIT_ANGLE = 15;
 EXIT_FLARE = 8;
 
 // Misc wall thickness
-THICKNESS = 5;
+THICKNESS = 10;
 
-module whistle(length=FLUE_LENGTH,
-               width=FLUE_WIDTH) {
+module whistle(length=FLUE_LENGTH, width=FLUE_WIDTH, volume=10000) {
+  r_body = cap_radius(volume, TRUNCATE);
+  r_body_outer = r_body + THICKNESS;
+  top = 2 * r_body_outer * TRUNCATE;
+
+  ang = 40;
   difference() {
-    pipe(length, width);
-    fipple_cut(length, width);
+    union() {
+      rotate(ang, v=[0, 1, 0])
+        translate([0, 0, FLUE_HEIGHT / 2])
+        mouthpiece(length, width);
+      translate([0, 0, -top + 1.5 * FLUE_HEIGHT])
+        body(volume);
+    }
+    rotate(ang, v=[0, 1, 0])
+      fipple_cut(length, width);
+  }
+}
+
+module mouthpiece(length, width) {
+  translate([-length, 0, 0])
+    scale([1, 1, 0.3])
+      rotate(90, v=[0, 1, 0])
+        cylinder(r=width * 0.9, h=length);
+}
+
+module body(volume) {
+  r_body = cap_radius(volume, TRUNCATE);
+  r_body_outer = r_body + THICKNESS;
+
+  top = 2 * r_body_outer * TRUNCATE;
+
+  difference() {
+    trunc_sphere(r_body_outer);
+    translate([0, 0, THICKNESS])
+      trunc_sphere(r_body);
   }
 }
 
@@ -30,7 +63,7 @@ module pipe(length, width) {
         // Body
         cylinder(r=width, h=length * 2, center=true);
         // Internal volume
-        # translate([0, 0, length / 2])
+        translate([0, 0, length / 2])
           cylinder(r=width - THICKNESS, h=length + 2 * E, center=true);
         // Mouthpiece curve
         translate([width * 1.7, 0, -length])
@@ -80,10 +113,10 @@ module fipple_cut(length=FLUE_LENGTH,
 
   // mouth cut
   cut_depth = tan(EXIT_ANGLE) * gap;
-  x1 = length;
-  z1 = length * tan(cut_angle);
+  x1 = 100;
+  z1 = x1 * tan(cut_angle);
   y1 = width / 2;
-  y2 = width / 2 + length * tan(flare_angle);
+  y2 = width / 2 + x1 * tan(flare_angle);
   translate([-E, 0, -cut_depth]) {
     polyhedron(
       points=[
@@ -105,24 +138,30 @@ module fipple_cut(length=FLUE_LENGTH,
     cube([undercut, width, cut_depth * 4], center=true);
 }
 
-// Fipple cut placed at origin
-module fipple_mouth_cut(width, length, height, cut_angle=EXIT_ANGLE, flare_angle=EXIT_FLARE) {
-  x1 = length;
-  z1 = length * tan(cut_angle);
-  y1 = width / 2;
-  y2 = width / 2 + length * tan(flare_angle);
-  polyhedron(
-    points=[
-      [0, -y1, 0], [x1, -y2, z1], [0, -y1, z1],
-      [0, y1, 0],  [x1, y2, z1],  [0, y1, z1]
-    ],
-    triangles=[
-      [0, 2, 1], [3, 4, 5],
-      [0, 5, 2], [0, 3, 5],
-      [2, 4, 1], [2, 5, 4],
-      [0, 4, 3], [0, 1, 4]
-  ]);
+module trunc_sphere(r) {
+  difference() {
+    translate([0, 0, 2 * r * (TRUNCATE - 0.5)])
+      sphere(r);
+    translate([0, 0, -r])
+      cube([2 * r, 2 * r, 2 * r], center=true);
+  }
 }
+
+/* Calculate radius of spherical cap of volume, v, and
+   and percent of sphere, p (0 - 1).
+
+   V = PI H^2 / 3 (3R - H)
+
+   where H = 2R * P:
+
+   V = 4 PI R^2 P^2 / 3 * (3R - 2R P)
+     = 4 PI R^3 P^2 /  3 * (3 - 2 P)
+
+   R = cube_root(3 V / (4 PI P^2 (3 - 2P))
+
+   Note full sphere volume is 4/3 PI R^3
+*/
+function cap_radius(v, p) = pow(3 * v / (4 * PI * pow(p, 2) * (3 - 2 * p)), 1 / 3);
 
 whistle();
 //fipple_cut();

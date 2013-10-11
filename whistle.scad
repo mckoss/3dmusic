@@ -1,4 +1,4 @@
-E = 0.01;
+E = 0.1;
 $fa = 3;
 $fs = 1;
 
@@ -14,10 +14,13 @@ GAP_LENGTH = FLUE_HEIGHT * FLUE_TAPER * 2;
 EXIT_ANGLE = 15;
 EXIT_FLARE = 8;
 
-// Misc wall thickness
-THICKNESS = 10;
+SOUND_MPS = 344;
+C = SOUND_MPS * 1000 / 2 / PI;
 
-module whistle(length=FLUE_LENGTH, width=FLUE_WIDTH, volume=10000) {
+// Misc wall thickness
+THICKNESS = 2;
+
+module whistle_ball(length=FLUE_LENGTH, width=FLUE_WIDTH, volume=10000) {
   r_body = cap_radius(volume, TRUNCATE);
   r_body_outer = r_body + THICKNESS;
   top = 2 * r_body_outer * TRUNCATE;
@@ -29,12 +32,50 @@ module whistle(length=FLUE_LENGTH, width=FLUE_WIDTH, volume=10000) {
         translate([0, 0, FLUE_HEIGHT / 2])
         mouthpiece(length, width);
       translate([0, 0, -top + 1.5 * FLUE_HEIGHT])
-        body(volume);
+        ball(volume);
     }
     rotate(ang, v=[0, 1, 0])
       fipple_cut(length, width);
   }
 }
+
+module whistle_cylinder(flue_width=FLUE_WIDTH,
+                        flue_height=FLUE_HEIGHT,
+                        pitch=2000,
+                        volume) {
+  gap = flue_height * FLUE_TAPER * 2;
+  area = gap * flue_width;
+  width = flue_width + 2 * THICKNESS;
+  // Effective length???
+  length = THICKNESS + flue_height;
+  echo("Effective mouth length", length);
+  _volume = volume == undef ? volume_of(pitch, area, length) : volume;
+  r = circle_radius(_volume / flue_width);
+  flue_length = 2 * r;
+  echo("Radius", r);
+  difference() {
+    union() {
+      translate([-flue_length / 2 - r, 0, flue_height / 2])
+        cube([flue_length, width, flue_height + 2 * THICKNESS], center=true);
+      translate([0, 0, -r + flue_height])
+        rotate(90, v=[1, 0, 0])
+          difference() {
+            cylinder(r=r + THICKNESS, h=width, center=true);
+            cylinder(r=r, h=flue_width, center=true);
+          }
+      translate([-(r + THICKNESS) / 2, 0, -(r + THICKNESS) / 2 + flue_height + THICKNESS])
+        difference() {
+          cube([r + THICKNESS, width, r + THICKNESS], center=true);
+          translate([THICKNESS + E, 0, -THICKNESS - flue_height])
+            cube([r + THICKNESS, flue_width, r + THICKNESS], center=true);
+        }
+    }
+  translate([-r, 0, 0])
+    fipple_cut(flue_length, flue_width, cut_limit=r, cut_depth=flue_height + 3 * THICKNESS);
+  }
+}
+
+function volume_of(pitch, area, length) = pow(C / pitch, 2) * area / length;
 
 module mouthpiece(length, width) {
   translate([-length, 0, 0])
@@ -43,7 +84,7 @@ module mouthpiece(length, width) {
         cylinder(r=width * 0.9, h=length);
 }
 
-module body(volume) {
+module ball(volume) {
   r_body = cap_radius(volume, TRUNCATE);
   r_body_outer = r_body + THICKNESS;
 
@@ -81,11 +122,13 @@ module pipe(length, width) {
 module fipple_cut(length=FLUE_LENGTH,
               width=FLUE_WIDTH,
               height=FLUE_HEIGHT,
-              taper=FLUE_TAPER,
-              gap=GAP_LENGTH,
               cut_angle=EXIT_ANGLE,
-              flare_angle=EXIT_FLARE) {
-
+              flare_angle=EXIT_FLARE,
+              cut_limit,
+              cut_depth) {
+  gap = height * FLUE_TAPER * 2;
+  _cut_limit = cut_limit == undef ? 50 : cut_limit;
+  _cut_depth = cut_depth == undef ? 50 : cut_depth;
   /* wind-way (flue)
      2----6
      |\   |\
@@ -99,8 +142,8 @@ module fipple_cut(length=FLUE_LENGTH,
     points=[
       [-length - E, -width / 2, 0], [-length - E, -width / 2, height],
       [-length - E, width / 2, height], [-length - E, width / 2, 0],
-      [0, -width / 2, 0], [0, -width / 2, height * taper],
-      [0, width / 2, height * taper], [0, width / 2, 0]
+      [0, -width / 2, 0], [0, -width / 2, height * FLUE_TAPER],
+      [0, width / 2, height * FLUE_TAPER], [0, width / 2, 0]
     ],
     triangles=[
       [0, 3, 2], [0, 2, 1],
@@ -111,31 +154,40 @@ module fipple_cut(length=FLUE_LENGTH,
       [0, 4, 7], [0, 7, 3]
     ]);
 
-  // mouth cut
-  cut_depth = tan(EXIT_ANGLE) * gap;
-  x1 = 100;
+  /* Mouth cut
+            x1
+        3---2    z2
+        |   |
+        |   1    z1
+        |  /
+        |/
+        0       far side +4
+  */
+  undercut_depth = tan(EXIT_ANGLE) * gap;
+  x1 = _cut_limit;
   z1 = x1 * tan(cut_angle);
+  z2 = max(z1 + 1, _cut_depth);
   y1 = width / 2;
   y2 = width / 2 + x1 * tan(flare_angle);
-  translate([-E, 0, -cut_depth]) {
+  translate([-E, 0, -undercut_depth]) {
     polyhedron(
       points=[
-        [0, -y1, 0], [x1, -y2, z1], [0, -y1, z1],
-        [0, y1, 0],  [x1, y2, z1],  [0, y1, z1]
+        [0, -y1, 0], [x1, -y2, z1], [x1, -y2, z2], [0, -y1, z2],
+        [0, y1, 0],  [x1, y2, z1],  [x1, y2, z2], [0, y1, z2]
       ],
       triangles=[
-        [0, 2, 1], [3, 4, 5],
-        [0, 5, 2], [0, 3, 5],
-        [2, 4, 1], [2, 5, 4],
-        [0, 4, 3], [0, 1, 4]
+        [0, 3, 2], [0, 2, 1],  // front
+        [4, 6, 7], [4, 5, 6],  // back
+        [0, 4, 7], [0, 7, 3],  // left
+        [1, 2, 6], [1, 6, 5],  // right
+        [0, 1, 5], [0, 5, 4],  // bottom
+        [2, 3, 7], [2, 7, 6]   // top
     ]);
   }
 
   // Cut underside of labium.
-  undercut = 5 * gap;
-  // Ensure gap is clear down to cut depth
-  translate([undercut / 2, 0, -2 * cut_depth])
-    cube([undercut, width, cut_depth * 4], center=true);
+  translate([gap, 0, -2 * undercut_depth])
+    cube([2 * gap, width, undercut_depth * 4], center=true);
 }
 
 module trunc_sphere(r) {
@@ -163,5 +215,10 @@ module trunc_sphere(r) {
 */
 function cap_radius(v, p) = pow(3 * v / (4 * PI * pow(p, 2) * (3 - 2 * p)), 1 / 3);
 
-whistle();
-//fipple_cut();
+// A = PI R^2
+// R = sqrt(A / PI)
+function circle_radius(a) = sqrt(a / PI);
+
+//whistle_ball();
+whistle_cylinder();
+//fipple_cut(20, 30);
